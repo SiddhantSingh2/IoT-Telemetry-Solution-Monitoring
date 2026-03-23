@@ -49,15 +49,3 @@ CREATE OR REPLACE VIEW escalation_list AS
 SELECT *, CASE WHEN is_problematic = 1 AND error_count > 0 THEN 'High' WHEN is_problematic = 1 OR error_count > 5 THEN 'Medium' ELSE 'Low' END as priority
 FROM segmentation
 WHERE is_problematic = 1 OR error_count > 0;
-
--- FINAL OUTPUTS
-SELECT '--- Q1: PROFILING ---' as status;
-SELECT * FROM q1_profiling;
-
-SELECT '--- Q4: LIFT ANALYSIS ---' as status;
-SELECT is_problematic, count(*) as devices, AVG(error_count) as avg_errors, 
-       AVG(error_count) / (SELECT AVG(error_count) FROM segmentation) as lift
-FROM segmentation GROUP BY 1;
-
-SELECT '--- Q5: ESCALATION LIST (TOP 10) ---' as status;
-SELECT * FROM escalation_list WHERE priority IN ('High', 'Medium') ORDER BY priority, error_count DESC LIMIT 10;
