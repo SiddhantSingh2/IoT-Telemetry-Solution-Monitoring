@@ -1,60 +1,97 @@
 # IoT Telemetry & Solution Monitoring Analysis
 
 ## Project Overview
-This project provides a comprehensive SQL-based analysis of IoT device telemetry to identify connectivity gaps, firmware performance issues, and hardware errors. The solution is optimized for **DuckDB** and processes three primary datasets: device metadata, telemetry measurements, and error logs.
+This analysis investigates intermittent connectivity issues and device health across a fleet of 800 IoT energy devices. The goal is to identify "at-risk" behavior, profile affected systems, and provide a prioritized escalation list for the operations team.
+
+## Executive Summary
+- **Primary Issue**: Intermittent "short recurring gaps" (>= 1 hour) are affecting **15.1% (121/800)** of the fleet.
+- **Critical Correlation**: **100%** of flagged devices are running **firmware v2.3.1** and connect via **cellular** networks.
+- **Geographic Clustering**: The **East region** is disproportionately affected (34.5% flagged rate).
+- **Escalation**: **60 devices** are categorized as **High Priority** due to both connectivity gaps and active error logs.
 
 ---
 
-## Visual Insights
+## Part 1: Detailed Findings
 
-### 1. Error Frequency Analysis
-Identifies the most common error codes across the fleet. `MissingData.Status` is the primary concern, indicating widespread telemetry loss.
+### Question 1: Data Characterization
+- **Time Coverage**:
+    - Telemetry: 2025-12-23 to 2026-03-23 (3 months).
+    - Errors: 2026-01-26 to 2026-03-20.
+- **Scale**: 800 distinct devices, all of which appear in both telemetry and metadata. 439 devices (55%) have recorded errors.
+- **Telemetry Cadence**: Nominal interval is **5 minutes**.
+- **Common Errors**: `MissingData.Status` and `OtherError.0x100202` are the most frequent.
+
+### Question 2: Connectivity Analysis
+We defined two rules for "problematic" behavior:
+1. **Long Gap**: >= 2 days (0 devices matched).
+2. **Short Recurring Gaps**: >= 3 gaps of >= 1 hour in 7 days (**121 devices matched**).
+
+**Top 5 Devices by Gap Minutes (Last 30 Days):**
+| Device ID | Gap Events | Total Gap Min | Max Single Gap | Error Count |
+|-----------|------------|---------------|----------------|-------------|
+| IOT_EC1D6B9 | 29 | 5770 | 300 | 0 |
+| IOT_CFB448F | 32 | 5765 | 285 | 6 |
+| IOT_3AD643A | 29 | 5760 | 300 | 383 |
+| IOT_BA07C15 | 31 | 5700 | 295 | 0 |
+| IOT_5647899 | 30 | 5700 | 300 | 9 |
+
+### Question 3: Profiling & Trends
+- **Error Rates**: Flagged devices have **~2.2x higher error rates** (29.9 errors/sys) compared to healthy ones (13.3 errors/sys).
+- **Trends**: Gap events have surged significantly starting in **March 2026**, suggesting a worsening network or firmware-related degradation.
+
+### Question 4: Segmentation (The "Smoking Gun")
+| Segment | Attribute | Flagged Rate |
+|---------|-----------|--------------|
+| **Firmware** | **v2.3.1** | **36.7%** (Other versions: 0%) |
+| **Network** | **Cellular** | **36.3%** (Broadband/Fiber: 0%) |
+| **Region** | **East** | **34.5%** |
+
+**Conclusion**: The issue is exclusively isolated to **Cellular devices on Firmware v2.3.1**.
+
+### Question 5: Escalation List
+| Priority | Criteria | Count |
+|----------|----------|-------|
+| **High** | Flagged (Gaps) AND Errors > 0 | 60 |
+| **Medium** | Flagged OR Errors > 5 | 373 |
+| **Low** | All others with any error | 367 |
+
+**Top 5 High Priority Escalations:**
+1. **IOT_A955625** (1710 errors, Flagged)
+2. **IOT_11D6914** (436 errors, Flagged)
+3. **IOT_3AD643A** (386 errors, Flagged)
+4. **IOT_02D3BA0** (339 errors, Flagged)
+5. **IOT_5C41BBC** (120 errors, Flagged)
+
+---
+
+## Visualizations
+
+### 1. Error Frequency (Top 10)
 ![Error Frequency](error_frequency.png)
 
-### 2. Fleet Escalation Priority
-Distribution of devices categorized by health risk. High-priority devices require immediate technician intervention due to both gaps and active errors.
+### 2. Fleet Health Distribution
 ![Priority Distribution](priority_distribution.png)
 
-### 3. Error Lift: Problematic vs. Healthy Fleet
-Comparative analysis showing that devices with connectivity gaps (Problematic) have nearly **2x more errors** on average than the healthy fleet.
+### 3. Impact Analysis (Lift)
+Flagged devices show a significant increase in error frequency compared to healthy ones.
 ![Error Lift](error_lift_analysis.png)
 
 ---
 
-## Technical Solution Overview (`iot_solution.sql`)
-The final SQL solution is structured to handle massive telemetry datasets (including the 887 MB measurements file) efficiently using DuckDB's columnar engine.
+## Question 6: Reflection & Next Steps
 
-### Key Analysis Sections:
-1.  **Data Profiling**: Establishes baselines for data integrity, time horizons, and median ping intervals.
-2.  **Gap Analysis**:
-    *   **Long Gaps**: Silence period $\ge$ 2 days + 5 minutes.
-    *   **Short Recurring Gaps**: 3+ gaps of $\ge$ 1 hour within a rolling 7-day window.
-3.  **Lift Analysis**: Measures the concentration of error logs in problematic vs. healthy devices.
-4.  **Escalation Logic**: Categorizes device health into High, Medium, and Low priority tiers.
+### Additional Data Needed
+- **Cellular Signal Strength (RSSI)**: To distinguish between firmware bugs and local tower issues.
+- **Ambient Temperature**: To check for thermal throttling or hardware failures in specific regions.
 
----
+### Hypotheses
+1. **v2.3.1 Modem Driver Bug**: The 100% correlation with cellular/v2.3.1 suggests the new firmware might have a bug in handling cellular reconnection.
+2. **Regional Carrier Degradation**: The clustering in the "East" region could point to a specific cellular provider's performance issues in that area.
 
-## How to Run
-1. **Run the SQL Analysis**:
-   ```bash
-   duckdb -c ".read iot_solution.sql"
-   ```
-2. **Generate Visualizations**:
-   Ensure you have `pandas`, `matplotlib`, and `seaborn` installed, then run:
-   ```bash
-   python visualize_results.py
-   ```
+### Alerts in Production
+- **Risk**: Setting alerts on "Short Recurring Gaps" might trigger "flapping" notifications.
+- **Iteration**: We should use a "sustained failure" window (e.g., 3 hours) before escalating to a human to reduce noise.
 
----
-
-## Analysis Findings
-
-### Hypotheses for Intermittent Behavior
-*   **Firmware `v2.3.1` Network Stack**: High correlation between connectivity gaps and `MissingData` errors suggests a memory leak or network driver crash.
-*   **Regional Thermal Throttling**: Devices in high-heat regions (south) show recurring gaps that may be related to hardware-level thermal protection.
-*   **Cellular Handoff Failures**: Intermittent behavior in cellular devices points to potential tower-switching issues.
-
-### Missing Data for Deeper Insights
-*   **RSSI/SNR (Signal Strength)**: Crucial for distinguishing between "Offline" (power issue) and "Unreachable" (network issue).
-*   **Internal Temperature Sensors**: To correlate environmental heat with hardware resets.
-*   **Reboot Reason Codes**: To identify if devices are restarting due to a `Watchdog Timer` (crash).
+### Limitations
+- Gaps are inferred from missing timestamps, not recorded disconnect events.
+- Error codes are not categorized by severity (e.g., Critical vs Info), which may over-index certain devices.
