@@ -17,9 +17,8 @@ def generate_charts():
     print("Executing SQL Solution...")
     with open('iot_solution.sql', 'r') as f:
         sql_script = f.read()
-        for statement in sql_script.split(';'):
-            if statement.strip():
-                con.execute(statement)
+        # Clean the script for duckdb execution
+        con.execute(sql_script)
 
     # 1. Error Frequency Chart (Q1d)
     print("Generating Error Frequency Chart...")
@@ -40,10 +39,9 @@ def generate_charts():
 
     # 2. Priority Distribution (Q5b)
     print("Generating Priority Distribution Chart...")
-    priority_dist = con.execute("SELECT priority, count(*) as count FROM escalation_list GROUP BY 1 ORDER BY 1").df()
+    priority_dist = con.execute("SELECT priority, count(*) as count FROM fleet_priority GROUP BY 1 ORDER BY 1").df()
     
     plt.figure(figsize=(8, 8))
-    # Use viridis colors for the pie chart too
     viridis_colors = sns.color_palette(PALETTE, n_colors=len(priority_dist))
     plt.pie(priority_dist['count'], labels=priority_dist['priority'], autopct='%1.1f%%', colors=viridis_colors, startangle=140)
     plt.title('IoT Fleet Escalation Priority Distribution (Question 5b)', fontsize=16)
@@ -52,16 +50,10 @@ def generate_charts():
 
     # 3. Lift Analysis Chart (Q3b)
     print("Generating Lift Analysis Chart...")
-    lift_data = con.execute("""
-        SELECT 
-            CASE WHEN is_problematic = 1 THEN 'Flagged Segment' ELSE 'Healthy Segment' END as segment,
-            AVG(error_count) as avg_errors
-        FROM segmentation
-        GROUP BY 1
-    """).df()
+    lift_data = con.execute("SELECT * FROM q3_b_error_comparison").df()
 
     plt.figure(figsize=(10, 6))
-    sns.barplot(data=lift_data, x='segment', y='avg_errors', palette=PALETTE)
+    sns.barplot(data=lift_data, x='status', y='errors_per_system', palette=PALETTE)
     plt.title('Average Errors: Flagged vs Healthy Fleet (Question 3b)', fontsize=16)
     plt.ylabel('Average Error Count')
     plt.savefig('error_lift_analysis.png')
@@ -71,8 +63,8 @@ def generate_charts():
     print("Generating Firmware Segmentation Chart...")
     firmware_data = con.execute("""
         SELECT firmware, 
-               round(count(CASE WHEN is_problematic = 1 THEN 1 END) * 100.0 / count(*), 1) as failure_rate
-        FROM segmentation
+               round(count(CASE WHEN device_id IN (SELECT device_id FROM problematic_devices) THEN 1 END) * 100.0 / count(*), 1) as failure_rate
+        FROM devices
         GROUP BY 1 ORDER BY 2 DESC
     """).df()
 
@@ -87,8 +79,8 @@ def generate_charts():
     print("Generating Network Segmentation Chart...")
     network_data = con.execute("""
         SELECT network_type, 
-               round(count(CASE WHEN is_problematic = 1 THEN 1 END) * 100.0 / count(*), 1) as failure_rate
-        FROM segmentation
+               round(count(CASE WHEN device_id IN (SELECT device_id FROM problematic_devices) THEN 1 END) * 100.0 / count(*), 1) as failure_rate
+        FROM devices
         GROUP BY 1 ORDER BY 2 DESC
     """).df()
 
@@ -113,6 +105,16 @@ def generate_charts():
     plt.ylabel('Count of Gap Events (>=1hr)')
     plt.tight_layout()
     plt.savefig('gap_trend.png')
+    plt.close()
+
+    # 7. Segmentation: Region (Q4c)
+    print("Generating Regional Segmentation Chart...")
+    region_data = con.execute("SELECT * FROM q4_c_region").df()
+    plt.figure(figsize=(10, 6))
+    sns.barplot(data=region_data, x='region', y='failure_rate', palette=PALETTE)
+    plt.title('Failure Rate by Region (Question 4c)', fontsize=16)
+    plt.ylabel('Flagged Device %')
+    plt.savefig('segmentation_region.png')
     plt.close()
 
     print("Success! All charts saved as PNG files.")

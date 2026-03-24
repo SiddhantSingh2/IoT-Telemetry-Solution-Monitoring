@@ -1,96 +1,118 @@
 # IoT Telemetry & Solution Monitoring Analysis
 
-This document provides a comprehensive analysis of the IoT device health and connectivity assignment. All findings are derived from SQL analysis on the provided telemetry, error, and device metadata.
+This report provides a detailed analysis of the IoT device health and connectivity assignment. All findings are derived from SQL analysis of the telemetry, error, and device metadata.
 
 ---
 
-## Part 1: Detailed Findings by Question
+## Question 1 – Understand the data
 
-### Question 1: Understand the Data
-**a. Time Coverage**
+**Q1a. Time Coverage: Earliest and latest `timestamp` in telemetry and `start_time` in errors. What does the difference imply?**
 - **Telemetry**: 2025-12-23 to 2026-03-23.
 - **Errors**: 2026-01-26 to 2026-03-20.
-- *Implication*: Error logs cover a shorter window (~2 months) within the 3-month telemetry period. Joining them requires filtering for overlapping periods to avoid under-counting healthy systems in early January.
+- **Implication**: Error logs only cover the final ~2 months of the 3-month telemetry window. This means we cannot correlate connectivity gaps in early January with error logs, as they were not captured in this extract.
 
-**b. Scale**
-- **Distinct Devices**: 800 in metadata, 800 in telemetry, 439 in errors.
-- **Join Gaps**: 0 (Full consistency between files).
+**Q1b. Scale: Count of distinct `device_id` in each file. Count of devices missing in telemetry vs attributes.**
+- **Metadata**: 800 devices.
+- **Telemetry**: 800 devices.
+- **Errors**: 439 devices.
+- **Gaps**: 0. The fleet is perfectly consistent across metadata and telemetry.
 
-**c. System Mix**
-- Fleet is diverse across 6 firmware versions and 3 network types (Cellular, Broadband, Fiber).
+**Q1c. System Mix: Distribution by firmware, network, and region.**
+- The fleet is spread across 4 regions (East is largest with 232 devices) and 3 network types (Broadband, Cellular, Fiber).
 
-**d. Errors & Cadence**
+**Q1d. Errors: Distinct codes, frequency, and device counts.**
 - **Distinct Error Codes**: 113.
-- **Telemetry Cadence**: Nominal interval is **5 minutes** (median/mode gap).
-
-**Visual Analysis (Q1d):**
-The chart below shows the top 10 error codes. `MissingData.Status` is the most frequent, which aligns with the reported connectivity issues.
+- **Devices with at least one error**: 439.
+- **Devices in telemetry with NO errors**: 361.
+- **Frequency**: `MissingData.Status` is the top error code, appearing primarily in flagged devices.
 ![Error Frequency](error_frequency.png)
 
----
-
-### Question 2: Identify Connectivity Problems
-**a. Rule Application**
-- **Long Gap (Rule 1)**: >= 2 days (0 devices).
-- **Short Recurring Gaps (Rule 2)**: >= 3 gaps of >= 1 hour in 7 days (**121 devices**).
-
-**b. Top 20 Devices (Last 30 Days)**
-The top 20 devices by gap minutes are listed in the SQL output (`top_20_gaps` table). Most have accumulated >5,000 gap minutes in the final month.
+**Q1e. Telemetry Cadence: Infer the typical interval and note violations.**
+- **Nominal Interval**: 5 minutes (confirmed by >20M instances).
+- **Violations**: 121 devices show repeated violations of this 5-minute cadence, with gaps ranging from 65 minutes to several hours.
 
 ---
 
-### Question 3: Isolate and Profile Affected Devices
-**a. Installation Timing**
-- No significant clustering by installation date was found once the date format was correctly parsed; failure rates are consistent across install cohorts.
+## Question 2 – Identify Connectivity Problems
 
-**b. Error Comparison**
-Flagged devices show a significant "lift" in error frequency.
-- **Flagged Group**: 29.9 errors per system.
-- **Healthy Group**: 13.3 errors per system.
+**Q2a. Rule Application: How many devices satisfy Rule 1 (Long Gap >= 2 days) and Rule 2 (Short Recurring >= 3 gaps of 1hr in 7 days)?**
+- **Rule 1 (Long Gap)**: 0 devices. No device has a single continuous outage of 2 days.
+- **Rule 2 (Short Recurring)**: **121 devices**. This confirms the "intermittent" nature of the issue.
 
-**Visual Analysis (Q3b):**
-This graph demonstrates that problematic devices have over **2x more errors** on average than the rest of the fleet.
+**Q2b. Top 20 Devices: Top 20 devices by total gap minutes in the last 30 days.**
+- The top offender is `IOT_EC1D6B9` with 5,770 gap minutes. The top 20 list is dominated by devices that have lost roughly 10-15% of their expected uptime in the last month.
+
+**Q2c. Consistency Check: Do error timing and telemetry gaps line up?**
+- **Finding**: For the top 20 devices, there is a strong correlation. Devices like `IOT_3AD643A` show 382 error logs alongside 5,760 minutes of gaps. However, some devices like `IOT_EC1D6B9` have massive gaps but **zero** error logs, suggesting the "MissingData" error isn't always logged when the cellular modem crashes.
+
+---
+
+## Question 3 – Isolate and Profile the Affected Devices
+
+**Q3a. Compare Installation Timing: Share of flagged devices by installation cohort.**
+- **Analysis**: Flagged devices (those with recurring gaps) are spread across many installation years. While Dec 2021 shows a higher failure rate (42%), the issue affects systems installed as recently as 2025. This suggests the problem is **not** related to hardware aging, but rather the current software/network environment.
+
+**Q3b. Errors: Flagged vs Non-Flagged error rates.**
+- **Flagged (Gaps)**: 29.89 errors per system.
+- **Healthy (No Gaps)**: 13.29 errors per system.
+- **Insight**: Problematic devices have **2.2x more errors** than healthy ones. 
 ![Error Lift](error_lift_analysis.png)
 
+**Q3c. Extended Silence: Devices with no telemetry for > 24 hours.**
+- **Finding**: 0 devices. While Rule 2 is heavily triggered, no device has stayed offline for a full continuous 24-hour window. The modem always manages to reconnect eventually.
+
+**Q3d. Trend: Weekly total gap minutes for the top 10 devices.**
+- **Trend**: Worsening. The total volume of gap minutes has increased every week through March 2026, peaking in the final week of the telemetry file.
+
 ---
 
-### Question 4: Segmentation
-**a & b. Firmware and Network Patterns**
-The data shows an absolute correlation between failure and specific attributes.
+## Question 4 – Segmentation
 
-**Visual Analysis (Q4a & Q4b):**
-As shown below, **Firmware v2.3.1** and **Cellular** networks are the only segments experiencing these recurring gaps.
-
+**Q4a, b, c. Segmentation by Firmware, Network, and Region.**
+- **Firmware**: V2.3.1 is the only version failing.
+- **Network**: Cellular is the only network type failing.
+- **Region**: The East region is the most heavily affected (34% failure rate).
 ![Firmware Segmentation](segmentation_firmware.png)
 ![Network Segmentation](segmentation_network.png)
+![Region Segmentation](segmentation_region.png)
 
-**e. Strongest Pattern**
-The single strongest segmentation is the combination of **Firmware v2.3.1 + Cellular**. This segment has a **36% failure rate**, while every other combination in the fleet has a **0% failure rate**.
+**Q4e. Strongest Pattern: Which segmentation best separates "High Concern" from "Typical"?**
+- **The "Smoking Gun"**: The combination of **Firmware v2.3.1 + Cellular Network**. 
+- **Verification**: This segment has a **92.3% failure rate**. **Every other combination in the entire fleet (Broadband, Fiber, or other Firmwares) has a 0.0% connectivity failure rate.** While Broadband/Fiber devices still report operational errors, they never experience connectivity gaps.
 
 ---
 
-### Question 5: Escalation List
-**a & b. Priority Rules**
-- **High**: Flagged (Gaps) AND active errors (>0). (**60 devices**).
-- **Medium**: Flagged OR frequent errors (>5). (**373 devices**).
-- **Low**: Minimal errors and no gaps. (**367 devices**).
+## Question 5 – Escalation List
 
-**Visual Analysis (Q5b):**
-Distribution of the prioritized fleet health. (Note: Palette corrected to ensure consistency).
+**Q5a. Rules for Priority Levels.**
+- **High**: Flagged (Rule 2 Gaps) AND active error logs (>0).
+- **Medium**: Flagged OR frequent errors (>5).
+- **Low**: Healthy (No gaps and minimal errors).
+
+**Q5b. Priority Application: How many devices in each level?**
+- **High**: 60 devices.
+- **Medium**: 373 devices.
+- **Low**: 367 devices.
 ![Priority Distribution](priority_distribution.png)
 
-**e. Trend Analysis**
-Connectivity gaps have worsened significantly over time, peaking in the final week of March 2026.
+**Q5c. Top 20 Escalation List.**
+- The list is topped by devices on V2.3.1 Cellular with high gap minutes (e.g., `IOT_3AD643A`). These require immediate field or remote firmware downgrades.
 
-**Visual Analysis (Q5e):**
+**Q5d. Edge Case: Long absence but NO error rows.**
+- **Count**: **61 devices** have connectivity gaps but NO error logs in the `iot_device_errors` file.
+- **Treatment**: These are ranked as "Medium" or "High" priority based on gap severity. The absence of errors likely indicates the system crashed so hard it couldn't even log its own failure before going offline.
+
+**Q5e. Timing: Is there a week where behavior first shows unusual gaps?**
+- **Finding**: Connectivity issues spiked dramatically starting the week of March 9th, 2026.
 ![Gap Trend](gap_trend.png)
 
 ---
 
-### Question 6: Written Reflection
-- **Additional Data**: RSSI (Signal strength) and Watchdog reset logs would confirm if this is a modem crash or tower issue.
-- **Hypotheses**: 
-    1. **Firmware v2.3.1 Bug**: Likely a memory leak or driver crash in the cellular stack.
-    2. **Regional Network Degradation**: Worsening trend suggests a localized network issue or rolling firmware update causing congestion.
-- **Alerting Risks**: "Short recurring" rules can be noisy; recommend using a "time-to-recover" threshold to filter transient blips.
-- **Limitations**: Inferred gaps may include intentional maintenance windows; severity of error codes is unknown.
+## Question 6 – Written Reflection
+
+**a. Additional Data**: RSSI (Signal Strength) and Modem Reset Logs would confirm if this is a signal issue or a firmware crash.
+**b. Hypotheses**:
+1. **Firmware v2.3.1 Driver Bug**: Supported by the 92% failure rate in this segment.
+2. **Cellular Congestion**: Weakened by the fact that only v2.3.1 is failing, not older firmwares on the same network.
+**c. Alerting Risks**: Rule 2 might trigger on transient regional tower maintenance. Alerts should have a "sustained over 48 hours" clause to avoid noise.
+**d. Limitations**: The error file is truncated; we don't know if these devices were failing in early January.
