@@ -170,21 +170,15 @@ The devices that worry me most are the **High Priority** devices on **Firmware v
 
 ## Question 6 – Written Reflection
 
-**a. Additional Data for Root Cause Confidence**
-- **Cellular RSSI and SNR (Signal Quality)**: Identifying if connectivity gaps correlate with weak signal strength would confirm if the issue is environmental or firmware-driven.
-- **Modem Reset Reason Codes**: Access to low-level modem logs (e.g., "Watchdog Timeout" vs "User Request") would prove if the v2.3.1 firmware is causing kernel panics or driver hangs.
-- **Network Carrier Maintenance Logs**: Cross-referencing gaps with 4G/5G tower downtime would rule out external provider issues.
-- **Device Temperature Telemetry**: To check if the v2.3.1 update is causing CPU/Modem overheating, leading to thermal shutdowns.
+**a. What extra information would help us be more certain?**
+To really pin down the root cause, I’d love to see a few things that weren't in this dataset. First, **signal strength data (like RSSI)** would tell us if these devices are just in "dead zones" or if the hardware is actually failing. Second, having **internal reboot logs** would be huge—it would show us if the device is crashing because of a "memory leak" or if the modem is just timing out. Finally, knowing if there was any **scheduled maintenance** from the cellular providers would help us rule out external network issues that have nothing to do with our equipment.
 
-**b. Plausible Hypotheses for Intermittent Behavior**
-1. **Firmware v2.3.1 Driver Bug (Cellular Only)**: The 92.3% failure rate in this specific segment is the strongest evidence. This suggests a regression in the cellular handshake logic that triggers after the system has been up for a certain duration. This is supported by the worsening trend over time. *Falsification:* If a subset of v2.3.1 Cellular devices with a specific hardware revision *never* fails, it might be a hardware-software incompatibility instead.
-2. **Resource Leak in Telemetry Buffer**: The system might be failing to clear the telemetry cache during poor signal periods, leading to a memory overflow that crashes the modem driver. The "intermittent" nature matches a cycle of: *Normal Op -> Memory Fill -> Crash -> Reboot -> Normal Op*. *Falsification:* If a high-frequency telemetry test on Fiber/Broadband also causes crashes, it's a general resource bug, not a cellular-specific one.
+**b. What are the most likely theories for why this is happening?**
+1. **A bug in the v2.3.1 firmware update:** This is the most likely culprit. Since nearly every device (92.3%) on this specific version and network type is struggling, it looks like a software "regression." Basically, the new code might not know how to talk to cellular modems properly. We could disprove this by checking if any devices on older firmware are having the same issues; if they aren't, the update is definitely to blame.
+2. **The devices are "running out of breath" (Resource Leaks):** It's possible the systems are slowly filling up their internal memory until they can't handle any more data, which causes them to "hiccup" or restart. This would explain why the gaps seem to be getting worse the longer the devices are in the field. We could test this by trying to force a crash on a broadband device using the same data load; if it stays stable, the issue is specific to how the cellular modems handle resources.
 
-**c. Production Alerting Considerations**
-- **False Positives (Noise)**: Rule 2 (3 gaps of 1hr in 7 days) might trigger on normal ISP maintenance. Iteration would involve adding a "Persistence" check (e.g., must occur in 2 consecutive weeks) to differentiate transient noise from a failing system.
-- **Stakeholder Iteration**: Operations teams need "Actionable Alerts." An alert should include the probable cause (e.g., "Firmware v2.3.1 suspected") and a recommended action (e.g., "Queue Firmware Rollback"). We would review "False Alarm" tickets weekly to refine thresholds.
+**c. What should we keep in mind if we turn these into automatic alerts?**
+The biggest risk is "alert fatigue"—we don't want to "cry wolf" every time a device has a minor connection blip. If we set the thresholds too tight, the operations team will start ignoring the notifications. To fix this, I’d suggest adding a "wait and see" period. Instead of alerting the second a device misses a few pings, we should wait to see if it stays problematic for a couple of days. We also need to make sure the alerts are actually helpful, giving the team a clear next step like "Roll back firmware to v2.3.0."
 
-**d. Limitations for Non-Technical Audiences**
-- **Data Truncation**: The error logs cover a shorter period than the telemetry, meaning we may be missing the "initial" error triggers for some systems.
-- **Correlation vs. Causation**: While v2.3.1 is the common factor, we cannot definitively say it *causes* the gaps without lab reproduction; however, the statistical link is strong enough to warrant immediate action.
-- **Sample Bias**: We only see "recorded" errors; "silent crashes" (61 devices) mean the situation is likely more severe than the error counts alone suggest.
+**d. A few things the broader team should know about this data:**
+It’s important to be honest about the limits of what we’re looking at. For one, the **error logs are shorter than the telemetry data**, so we might be missing the very first signs of trouble from earlier in the year. Also, even though the stats point a finger at the v2.3.1 update, **correlation doesn't always equal causation**. It’s a very strong lead, but we should verify it in a lab before we start a massive recall. Lastly, there are over 60 devices that are "silent failures"—they're dropping data but aren't even healthy enough to log an error. This means the problem might be even more serious than the error counts suggest.
