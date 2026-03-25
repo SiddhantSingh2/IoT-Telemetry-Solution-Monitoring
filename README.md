@@ -27,9 +27,9 @@ This report provides a detailed analysis of the IoT device health and connectivi
 - **Frequency**: `MissingData.Status` is the top error code, appearing primarily in flagged devices.
 ![Error Frequency](error_frequency.png)
 
-**Q1e. Telemetry Cadence: Infer the typical interval and note violations.**
+**Q1e. Telemetry Frequency: Infer the typical interval and note violations.**
 - **Nominal Interval**: 5 minutes (confirmed by >20M instances).
-- **Violations**: 121 devices show repeated violations of this 5-minute cadence, with gaps ranging from 65 minutes to several hours.
+- **Violations**: 121 devices show repeated violations of this 5-minute frequency, with gaps ranging from 65 minutes to several hours.
 
 ---
 
