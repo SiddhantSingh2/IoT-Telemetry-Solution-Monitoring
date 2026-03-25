@@ -84,17 +84,11 @@ SELECT
 -- QUESTION 2: IDENTIFY CONNECTIVITY PROBLEMS
 --------------------------------------------------------------------------------
 -- FINDINGS:
--- 2a. Rule 1: 0 devices (No outages >= 2 days). Rule 2: 121 devices.
+-- 2a. Rule 1: 0 devices (No outages >= 2 days / 2880 mins). Rule 2: 121 devices.
 -- 2b. Top 20: Dominated by IOT_EC1D6B9 (5,770 gap mins) and IOT_3AD643A (5,760 gap mins).
 -- 2c. Consistency Check: High correlation between gaps and errors for v2.3.1 Cellular devices.
 
 WITH 
-nominal AS (
-    SELECT gap FROM (
-        SELECT date_diff('minute', LAG(timestamp) OVER (PARTITION BY device_id ORDER BY timestamp), timestamp) as gap
-        FROM iot_measurements
-    ) WHERE gap > 0 GROUP BY 1 ORDER BY count(*) DESC LIMIT 1
-),
 gap_analysis AS (
     SELECT 
         device_id, 
@@ -102,11 +96,15 @@ gap_analysis AS (
         date_diff('minute', LAG(timestamp) OVER (PARTITION BY device_id ORDER BY timestamp), timestamp) as gap_minutes
     FROM iot_measurements
 ),
+
 flagged_devices AS (
+    -- Identify systems violating either Rule 1 or Rule 2
     SELECT DISTINCT device_id 
-    FROM gap_analysis, nominal
-    WHERE gap_minutes >= (2880 + nominal.gap)
+    FROM gap_analysis
+    WHERE gap_minutes >= 2880 -- Rule 1: 2 Days (2880 mins)
+    
     UNION
+    
     SELECT DISTINCT device_id 
     FROM (
         SELECT 
@@ -116,11 +114,12 @@ flagged_devices AS (
                 ORDER BY gap_end 
                 RANGE BETWEEN INTERVAL 7 DAYS PRECEDING AND CURRENT ROW
             ) as recurrent_gaps
-        FROM gap_analysis, nominal
-        WHERE gap_minutes >= (60 + nominal.gap)
+        FROM gap_analysis
+        WHERE gap_minutes >= 60 -- Rule 2: 1 Hour (60 mins)
     ) 
     WHERE recurrent_gaps >= 3
 )
+
 -- 2a: Count of distinct flagged devices
 SELECT count(*) as total_problematic_devices FROM flagged_devices;
 
@@ -131,7 +130,7 @@ SELECT
     sum(gap_minutes) as total_gap_minutes,
     max(gap_minutes) as max_single_gap_minutes
 FROM gap_analysis
-WHERE gap_minutes >= 65 
+WHERE gap_minutes >= 60 
   AND gap_end >= (SELECT MAX(timestamp) - INTERVAL 30 DAYS FROM iot_measurements)
 GROUP BY 1
 ORDER BY total_gap_minutes DESC
@@ -143,7 +142,7 @@ LIMIT 20;
 -- FINDINGS:
 -- 3a. Installation Timing: Distributed failure. Dec 2024 (12 devices) and Dec 2021 (42.86% rate).
 -- 3b. Error Rate: Flagged (29.89 errors/sys), Healthy (13.29 errors/sys). 2.2x lift.
--- 3c. Extended Silence: 0 devices with > 24h continuous silence.
+-- 3c. Extended Silence: 0 devices with > 24h (1440 mins) continuous silence.
 -- 3d. Trend: Worsening. Gap frequency increased weekly through March 2026.
 
 -- 3a: Installation Cohort Comparison
@@ -151,7 +150,7 @@ WITH flagged AS (
     SELECT DISTINCT device_id FROM (
         SELECT device_id, date_diff('minute', LAG(timestamp) OVER (PARTITION BY device_id ORDER BY timestamp), timestamp) as gap
         FROM iot_measurements
-    ) WHERE gap >= 65
+    ) WHERE gap >= 60
 )
 SELECT 
     date_trunc('month', installation_date) as install_month,
@@ -167,7 +166,7 @@ WITH flagged AS (
     SELECT DISTINCT device_id FROM (
         SELECT device_id, date_diff('minute', LAG(timestamp) OVER (PARTITION BY device_id ORDER BY timestamp), timestamp) as gap
         FROM iot_measurements
-    ) WHERE gap >= 65
+    ) WHERE gap >= 60
 )
 SELECT 
     CASE WHEN f.device_id IS NOT NULL THEN 'Flagged' ELSE 'Healthy' END as group_label,
@@ -186,9 +185,9 @@ FROM (
     SELECT device_id, date_diff('minute', LAG(timestamp) OVER (PARTITION BY device_id ORDER BY timestamp), timestamp) as gap_minutes
     FROM iot_measurements
 )
-WHERE gap_minutes > 1445; -- 24h + 5m nominal
+WHERE gap_minutes > 1440; -- 24h
 
--- 3d: Weekly Trend for Top 10 Devices
+-- 3d: Weekly Trend for Top 10 Devices (Full Range)
 WITH top_10 AS (
     SELECT device_id FROM (
         SELECT device_id, sum(date_diff('minute', LAG(timestamp) OVER (PARTITION BY device_id ORDER BY timestamp), timestamp)) as total_gap
@@ -217,7 +216,7 @@ WITH flagged AS (
     SELECT DISTINCT device_id FROM (
         SELECT device_id, date_diff('minute', LAG(timestamp) OVER (PARTITION BY device_id ORDER BY timestamp), timestamp) as gap
         FROM iot_measurements
-    ) WHERE gap >= 65
+    ) WHERE gap >= 60
 )
 SELECT 
     d.firmware, 
@@ -243,11 +242,13 @@ flagged AS (
     SELECT DISTINCT device_id FROM (
         SELECT device_id, date_diff('minute', LAG(timestamp) OVER (PARTITION BY device_id ORDER BY timestamp), timestamp) as gap
         FROM iot_measurements
-    ) WHERE gap >= 65
+    ) WHERE gap >= 60
 ),
+
 error_summary AS (
     SELECT device_id, count(*) as error_count FROM iot_device_errors GROUP BY 1
 ),
+
 priority_ranking AS (
     SELECT 
         d.device_id,
@@ -261,8 +262,9 @@ priority_ranking AS (
         END as priority
     FROM iot_devices d
     LEFT JOIN flagged f ON d.device_id = f.device_id
-    LEFT JOIN error_summary e ON d.device_id = e.error_count
+    LEFT JOIN error_summary e ON d.device_id = e.device_id
 )
+
 SELECT * 
 FROM priority_ranking
 ORDER BY 
@@ -277,7 +279,7 @@ LIMIT 20;
 -- 5d: Edge Case Analysis (Gaps but NO errors)
 SELECT count(*) as count_gaps_no_errors
 FROM iot_devices d
-JOIN (SELECT DISTINCT device_id FROM (SELECT device_id, date_diff('minute', LAG(timestamp) OVER (PARTITION BY device_id ORDER BY timestamp), timestamp) as gap FROM iot_measurements) WHERE gap >= 65) f ON d.device_id = f.device_id
+JOIN (SELECT DISTINCT device_id FROM (SELECT device_id, date_diff('minute', LAG(timestamp) OVER (PARTITION BY device_id ORDER BY timestamp), timestamp) as gap FROM iot_measurements) WHERE gap >= 60) f ON d.device_id = f.device_id
 LEFT JOIN iot_device_errors e ON d.device_id = e.device_id
 WHERE e.device_id IS NULL;
 
@@ -289,6 +291,6 @@ FROM (
     SELECT device_id, timestamp, date_diff('minute', LAG(timestamp) OVER (PARTITION BY device_id ORDER BY timestamp), timestamp) as gap
     FROM iot_measurements
 )
-WHERE gap >= 65
+WHERE gap >= 60
 GROUP BY 1
 ORDER BY 1;
