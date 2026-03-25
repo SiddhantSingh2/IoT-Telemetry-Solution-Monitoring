@@ -18,23 +18,12 @@ def generate_updates():
         sql_script = f.read()
         con.execute(sql_script)
 
-    # --- TABLES ---
+    # --- DATA EXTRACTION ---
     
-    # Q2b: Top 20 Gaps Table
-    print("Extracting Q2b Table...")
-    top_20_gaps = con.execute("SELECT * FROM top_20_gaps").df()
-    top_20_gaps_md = top_20_gaps.to_markdown(index=False)
-
-    # Q5c: Top 20 Escalation Table
-    print("Extracting Q5c Table...")
-    top_20_escalation = con.execute("SELECT * FROM top_20_escalation").df()
-    top_20_escalation_md = top_20_escalation.to_markdown(index=False)
-
-    # Q4d: Installation Cohort (Month)
-    print("Extracting Q4d Table...")
+    # Q4d/Q3a Data
     q4_d_data = con.execute("""
         SELECT 
-            date_trunc('month', install_date) as install_month,
+            strftime(install_date, '%Y-%m') as install_month_str,
             count(*) as total_devices,
             count(p.device_id) as flagged_devices,
             round(count(p.device_id) * 100.0 / count(*), 2) as failure_rate
@@ -42,30 +31,33 @@ def generate_updates():
         LEFT JOIN problematic_devices p ON d.device_id = p.device_id
         GROUP BY 1 ORDER BY 1
     """).df()
-    q4_d_md = q4_d_data.to_markdown(index=False)
-
-    # Q3b: Errors per system per week
-    # Assuming 8 weeks of error data based on Q1a
-    print("Calculating Q3b metrics...")
-    q3_b_data = con.execute("SELECT * FROM q3_b_error_comparison").df()
-    q3_b_data['errors_per_system_per_week'] = q3_b_data['errors_per_system'] / 8.0
-    q3_b_md = q3_b_data.to_markdown(index=False)
 
     # --- GRAPHS ---
 
-    # Q3a/Q4d: Failure Rate by Installation Month
-    print("Generating Installation Month Graph...")
-    plt.figure(figsize=(12, 6))
-    sns.barplot(data=q4_d_data, x='install_month', y='failure_rate', palette=PALETTE)
-    plt.title('Failure Rate by Installation Month (Q3a / Q4d)', fontsize=16)
-    plt.xticks(rotation=45)
-    plt.ylabel('Flagged Device %')
+    # Q3a: Failure Rate by Installation Month (Title: Question 3a)
+    print("Generating Q3a Installation Month Graph...")
+    plt.figure(figsize=(14, 7))
+    sns.barplot(data=q4_d_data, x='install_month_str', y='failure_rate', palette=PALETTE)
+    plt.title('Share of Flagged Devices by Installation Month (Question 3a)', fontsize=16)
+    plt.xticks(rotation=90)
+    plt.ylabel('Failure Rate (%)')
     plt.tight_layout()
-    plt.savefig('installation_month_failure.png')
+    plt.savefig('installation_month_q3a.png')
+    plt.close()
+
+    # Q4d: Failure Rate by Installation Month (Title: Question 4d)
+    print("Generating Q4d Installation Month Graph...")
+    plt.figure(figsize=(14, 7))
+    sns.barplot(data=q4_d_data, x='install_month_str', y='failure_rate', palette=PALETTE)
+    plt.title('Segmentation by Installation Cohort (Question 4d)', fontsize=16)
+    plt.xticks(rotation=90)
+    plt.ylabel('Failure Rate (%)')
+    plt.tight_layout()
+    plt.savefig('installation_month_q4d.png')
     plt.close()
 
     # Q3a: Failure Rate by Installation Year
-    print("Generating Installation Year Graph...")
+    print("Generating Q3a Installation Year Graph...")
     q3_a_year = con.execute("""
         SELECT 
             date_part('year', install_date) as install_year,
@@ -78,9 +70,10 @@ def generate_updates():
     """).df()
     plt.figure(figsize=(10, 6))
     sns.barplot(data=q3_a_year, x='install_year', y='failure_rate', palette=PALETTE)
-    plt.title('Failure Rate by Installation Year (Q3a)', fontsize=16)
-    plt.ylabel('Flagged Device %')
-    plt.savefig('installation_year_failure.png')
+    plt.title('Failure Rate by Installation Year (Question 3a)', fontsize=16)
+    plt.ylabel('Failure Rate (%)')
+    plt.tight_layout()
+    plt.savefig('installation_year_q3a.png')
     plt.close()
 
     # Q3d: Weekly Trend for Top 10
@@ -88,24 +81,21 @@ def generate_updates():
     q3_d_data = con.execute("SELECT * FROM top_10_weekly_trend").df()
     plt.figure(figsize=(12, 6))
     sns.lineplot(data=q3_d_data, x='week', y='weekly_gap_minutes', hue='device_id', marker='o')
-    plt.title('Weekly Gap Minutes Evolution - Top 10 Devices (Q3d)', fontsize=16)
+    plt.title('Weekly Gap Minutes Evolution - Top 10 Devices (Question 3d)', fontsize=16)
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
-    plt.savefig('top_10_gap_trend.png')
+    plt.savefig('top_10_gap_trend_q3d.png')
     plt.close()
 
-    # --- SAVE DATA FOR README ---
-    with open('readme_updates.txt', 'w') as f:
-        f.write("### Q2b Table\n")
-        f.write(top_20_gaps_md + "\n\n")
-        f.write("### Q5c Table\n")
-        f.write(top_20_escalation_md + "\n\n")
-        f.write("### Q4d Table\n")
-        f.write(q4_d_md + "\n\n")
-        f.write("### Q3b Table\n")
-        f.write(q3_b_md + "\n\n")
+    # Get Dec 2021 specifically for the text update
+    dec_2021 = q4_d_data[q4_d_data['install_month_str'] == '2021-12']
+    print(f"Dec 2021 Data:\n{dec_2021}")
+    
+    # Find month with most flagged devices
+    most_flagged_month = q4_d_data.loc[q4_d_data['flagged_devices'].idxmax()]
+    print(f"Month with most flagged devices: {most_flagged_month['install_month_str']} ({most_flagged_month['flagged_devices']} devices)")
 
-    print("Success! Tables and charts generated.")
+    print("Success! Updated charts generated.")
 
 if __name__ == "__main__":
     generate_updates()

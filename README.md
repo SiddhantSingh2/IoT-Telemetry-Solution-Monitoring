@@ -73,10 +73,10 @@ This report provides a detailed analysis of the IoT device health and connectivi
 ## Question 3 – Isolate and Profile the Affected Devices
 
 **Q3a. Compare Installation Timing: Share of flagged devices by installation cohort.**
-- **Analysis**: Flagged devices (those with recurring gaps) are spread across many installation years. While Dec 2021 shows a higher failure rate (42%), the issue affects systems installed as recently as 2025. This suggests the problem is **not** related to hardware aging, but rather the current software/network environment.
+- **Analysis**: Flagged devices are spread across all installation periods. While early small cohorts (Jan/Oct 2020) show 100% failure rates due to sample size, the most significant volume of failures comes from the **December 2024 cohort (12 flagged devices)**. The December 2021 cohort also remains a high-risk group with a **42.86% failure rate**. This broad distribution across years suggests the issue is software/firmware related rather than a hardware-aging batch.
 
-![Installation Month Failure Rate](installation_month_failure.png)
-![Installation Year Failure Rate](installation_year_failure.png)
+![Installation Month Failure Rate](installation_month_q3a.png)
+![Installation Year Failure Rate](installation_year_q3a.png)
 
 **Q3b. Errors: Flagged vs Non-Flagged error rates.**
 - **Flagged (Gaps)**: 29.89 errors per system (approx. 3.74 errors per week).
@@ -95,10 +95,10 @@ This report provides a detailed analysis of the IoT device health and connectivi
 
 **Q3d. Trend: Weekly total gap minutes for the top 10 devices.**
 - **Trend**: Worsening. The total volume of gap minutes has increased every week through March 2026, peaking in the final week of the telemetry file.
-![Top 10 Gap Trend](top_10_gap_trend.png)
+![Top 10 Gap Trend](top_10_gap_trend_q3d.png)
 
 **Which devices worry you most and what evidence supports that?**
-The devices that worry me most are those in the **High Priority** category, specifically those like `IOT_3AD643A` and `IOT_EC1D6B9`. These devices show consistently high gap minutes (losing >10% of expected telemetry) and are often accompanied by a high volume of `MissingData.Status` errors. The "smoking gun" evidence is the **Firmware v2.3.1 + Cellular** combination, which accounts for nearly 100% of all connectivity failures. The worsening weekly trend indicates that without intervention (like a firmware rollback), the connectivity for these systems will continue to degrade.
+The devices that worry me most are the **High Priority** devices on **Firmware v2.3.1 with Cellular connectivity**. Specifically, the **92.3% failure rate** within this segment (120 out of 130 devices) is a definitive indicator of a critical firmware regression. Devices like `IOT_3AD643A` and `IOT_EC1D6B9` are the highest concern as they lose over **5,700 minutes of telemetry per month**, representing a catastrophic loss of data for monitoring energy production and grid stability.
 
 ---
 
@@ -113,13 +113,11 @@ The devices that worry me most are those in the **High Priority** category, spec
 ![Region Segmentation](segmentation_region.png)
 
 **Q4d. Installation Cohort: Share of flagged devices by installation month.**
-- Flagged devices are present in almost every major installation month since 2020. There is no clear "bad batch" of hardware, as failure rates are distributed across both old and new systems.
-![Installation Month Failure Rate](installation_month_failure.png)
+- The failures cluster in the December 2024 cohort in terms of volume, but the failure rate is consistently high for Cellular/v2.3.1 devices regardless of their specific installation month.
+![Installation Month Failure Rate](installation_month_q4d.png)
 
 **Q4e. Strongest Pattern: Which segmentation best separates "High Concern" from "Typical"?**
-- **The "Smoking Gun"**: The combination of **Firmware v2.3.1 + Cellular Network**. 
-- **Verification**: This segment has a **92.3% failure rate**. **Every other combination in the entire fleet (Broadband, Fiber, or other Firmwares) has a 0.0% connectivity failure rate.** While Broadband/Fiber devices still report operational errors, they never experience connectivity gaps.
-- **One Paragraph Explanation**: The single segmentation that best separates "high concern" from "typical" is the intersection of **Firmware v2.3.1 and Cellular connectivity**. This segment exhibits a massive **92.3% lift** in failure rates compared to the rest of the fleet, which shows a perfect **0.0% failure rate** for all other firmware-network combinations. This indicates that the connectivity issue is almost certainly a software-driver regression in the v2.3.1 update specifically affecting cellular modems, rather than a regional network outage or a hardware-aging problem.
+- **One Paragraph Explanation**: The single segmentation that best separates "high concern" from "typical" is the intersection of **Firmware v2.3.1 and Cellular connectivity**. This segment exhibits a massive **92.3% failure rate** compared to the rest of the fleet, which shows a perfect **0.0% failure rate** for all other firmware-network combinations (Fiber and Broadband). This indicates that the connectivity issue is a specific software-driver regression in the v2.3.1 update affecting cellular modems, rather than a hardware-aging problem or a regional network outage.
 
 ---
 
@@ -137,8 +135,6 @@ The devices that worry me most are those in the **High Priority** category, spec
 ![Priority Distribution](priority_distribution.png)
 
 **Q5c. Top 20 Escalation List.**
-- The list is topped by devices on V2.3.1 Cellular with high gap minutes (e.g., `IOT_3AD643A`). These require immediate field or remote firmware downgrades.
-
 | device_id   | priority   | firmware   | network_type   |   error_count |   gap_minutes_last_30d | reason                                |
 |:------------|:-----------|:-----------|:---------------|--------------:|-----------------------:|:--------------------------------------|
 | IOT_3AD643A | High       | v2.3.1     | cellular       |           386 |                   5760 | Connectivity gaps + active error logs |
@@ -174,9 +170,21 @@ The devices that worry me most are those in the **High Priority** category, spec
 
 ## Question 6 – Written Reflection
 
-**a. Additional Data**: RSSI (Signal Strength) and Modem Reset Logs would confirm if this is a signal issue or a firmware crash.
-**b. Hypotheses**:
-1. **Firmware v2.3.1 Driver Bug**: Supported by the 92% failure rate in this segment.
-2. **Cellular Congestion**: Weakened by the fact that only v2.3.1 is failing, not older firmwares on the same network.
-**c. Alerting Risks**: Rule 2 might trigger on transient regional tower maintenance. Alerts should have a "sustained over 48 hours" clause to avoid noise.
-**d. Limitations**: The error file is truncated; we don't know if these devices were failing in early January.
+**a. Additional Data for Root Cause Confidence**
+- **Cellular RSSI and SNR (Signal Quality)**: Identifying if connectivity gaps correlate with weak signal strength would confirm if the issue is environmental or firmware-driven.
+- **Modem Reset Reason Codes**: Access to low-level modem logs (e.g., "Watchdog Timeout" vs "User Request") would prove if the v2.3.1 firmware is causing kernel panics or driver hangs.
+- **Network Carrier Maintenance Logs**: Cross-referencing gaps with 4G/5G tower downtime would rule out external provider issues.
+- **Device Temperature Telemetry**: To check if the v2.3.1 update is causing CPU/Modem overheating, leading to thermal shutdowns.
+
+**b. Plausible Hypotheses for Intermittent Behavior**
+1. **Firmware v2.3.1 Driver Bug (Cellular Only)**: The 92.3% failure rate in this specific segment is the strongest evidence. This suggests a regression in the cellular handshake logic that triggers after the system has been up for a certain duration. This is supported by the worsening trend over time. *Falsification:* If a subset of v2.3.1 Cellular devices with a specific hardware revision *never* fails, it might be a hardware-software incompatibility instead.
+2. **Resource Leak in Telemetry Buffer**: The system might be failing to clear the telemetry cache during poor signal periods, leading to a memory overflow that crashes the modem driver. The "intermittent" nature matches a cycle of: *Normal Op -> Memory Fill -> Crash -> Reboot -> Normal Op*. *Falsification:* If a high-frequency telemetry test on Fiber/Broadband also causes crashes, it's a general resource bug, not a cellular-specific one.
+
+**c. Production Alerting Considerations**
+- **False Positives (Noise)**: Rule 2 (3 gaps of 1hr in 7 days) might trigger on normal ISP maintenance. Iteration would involve adding a "Persistence" check (e.g., must occur in 2 consecutive weeks) to differentiate transient noise from a failing system.
+- **Stakeholder Iteration**: Operations teams need "Actionable Alerts." An alert should include the probable cause (e.g., "Firmware v2.3.1 suspected") and a recommended action (e.g., "Queue Firmware Rollback"). We would review "False Alarm" tickets weekly to refine thresholds.
+
+**d. Limitations for Non-Technical Audiences**
+- **Data Truncation**: The error logs cover a shorter period than the telemetry, meaning we may be missing the "initial" error triggers for some systems.
+- **Correlation vs. Causation**: While v2.3.1 is the common factor, we cannot definitively say it *causes* the gaps without lab reproduction; however, the statistical link is strong enough to warrant immediate action.
+- **Sample Bias**: We only see "recorded" errors; "silent crashes" (61 devices) mean the situation is likely more severe than the error counts alone suggest.
