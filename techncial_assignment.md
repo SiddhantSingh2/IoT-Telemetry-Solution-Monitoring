@@ -143,7 +143,7 @@ d. **Errors**
    - How many distinct devices have **at least one** error row?
    - How many devices appear in telemetry but have **no** error rows in the extract?
 
-e. **Telemetry frequency**
+e. **Telemetry cadence**
    - Infer the typical interval between consecutive readings for a system (e.g. median gap when the system is “present”).
    - Note any devices or periods that clearly violate that pattern (without yet defining “affected”).
 
