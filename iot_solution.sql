@@ -205,20 +205,22 @@ WITH gap_data AS (
     FROM iot_measurements
 ),
 top_10 AS (
-    -- Second layer: Identify top 10 offenders
+    -- Second layer: Identify top 10 offenders by problematic gaps (>= 1hr)
     SELECT device_id 
     FROM gap_data 
+    WHERE gap_minutes >= 60
     GROUP BY 1 
     ORDER BY sum(gap_minutes) DESC 
     LIMIT 10
 )
--- Third layer: Aggregate weekly for the top 10
+-- Third layer: Aggregate weekly problematic gaps for the top 10
 SELECT 
     device_id, 
     date_trunc('week', timestamp) as week,
     sum(gap_minutes) as weekly_gap_minutes
 FROM gap_data
 WHERE device_id IN (SELECT device_id FROM top_10)
+  AND gap_minutes >= 60
 GROUP BY 1, 2
 ORDER BY 1, 2;
 

@@ -40,7 +40,7 @@ This report provides a detailed analysis of the IoT device health and connectivi
 - **Rule 2 (Short Recurring)**: **121 devices**. This confirms the "intermittent" nature of the issue.
 
 **Q2b. Top 20 Devices: Top 20 devices by total gap minutes in the last 30 days.**
-- The top offenders are losing roughly 10-15% of their expected uptime. The list is dominated by devices on Cellular networks with high recurring downtime.
+- The top offenders are losing significant uptime. The list is dominated by devices on Cellular networks with high recurring downtime.
 
 | device_id   |   gap_events |   total_gap_minutes |   max_single_gap_minutes |
 |:------------|-------------:|--------------------:|-------------------------:|
@@ -63,17 +63,17 @@ This report provides a detailed analysis of the IoT device health and connectivi
 | IOT_B1F517A |           28 |                5430 |                      270 |
 | IOT_4DEA934 |           29 |                5415 |                      285 |
 | IOT_3864140 |           28 |                5375 |                      300 |
-| IOT_2454CA4 |           30 |                5360 |                      300 |
+| IOT_0E9A215 |           29 |                5360 |                      305 |
 
 **Q2c. Consistency Check: Do error timing and telemetry gaps line up?**
-- **Finding**: For the top 20 devices, there is a strong correlation. Devices like `IOT_3AD643A` show 382 error logs alongside 5,760 minutes of gaps. However, some devices like `IOT_EC1D6B9` have massive gaps but **zero** error logs, suggesting the "MissingData" error isn't always logged when the cellular modem crashes.
+- **Finding**: For the top 20 devices, there is a strong correlation. Devices like `IOT_3AD643A` show high error counts alongside massive gaps. However, some "silent failures" have zero errors despite large gaps, suggesting critical system crashes.
 
 ---
 
 ## Question 3 – Isolate and Profile the Affected Devices
 
 **Q3a. Compare Installation Timing: Share of flagged devices by installation cohort.**
-- **Analysis**: Flagged devices are spread across all installation periods. While early small cohorts (Jan/Oct 2020) show 100% failure rates due to sample size, the most significant volume of failures comes from the **December 2024 cohort (12 flagged devices)**. The December 2021 cohort also remains a high-risk group with a **42.86% failure rate**. This broad distribution across years suggests the issue is software/firmware related rather than a hardware-aging batch.
+- **Analysis**: Flagged devices are spread across all installation periods. The issue is software/firmware related rather than a specific "bad batch" of older hardware.
 
 ![Installation Month Failure Rate](installation_month_q3a.png)
 ![Installation Year Failure Rate](installation_year_q3a.png)
@@ -91,51 +91,51 @@ This report provides a detailed analysis of the IoT device health and connectivi
 ![Error Lift](error_lift_analysis.png)
 
 **Q3c. Extended Silence: Devices with no telemetry for > 24 hours.**
-- **Finding**: 0 devices. While Rule 2 is heavily triggered, no device has stayed offline for a full continuous 24-hour window (1440 mins). The modem always manages to reconnect eventually.
+- **Finding**: 0 devices. No system has stayed offline for a full continuous 24-hour window (1440 mins). The modem always eventually reconnects.
 
 **Q3d. Trend: Weekly total gap minutes for the top 10 devices.**
-- **Trend**: Worsening. The total volume of gap minutes has increased every week through March 2026, peaking in the final week of the telemetry file.
+- **Trend**: Worsening. The volume of problematic gaps (>= 60 mins) has increased every week, peaking in March 2026. This indicates a progressive degradation rather than a stable issue.
 ![Top 10 Gap Trend](top_10_gap_trend_q3d.png)
 
 **Which devices worry you most and what evidence supports that?**
-The devices that worry me most are the **High Priority** devices on **Firmware v2.3.1 with Cellular connectivity**. Specifically, the **92.37% failure rate** within this segment (121 out of 131 devices) is a definitive indicator of a critical firmware regression. Devices like `IOT_3AD643A` and `IOT_EC1D6B9` are the highest concern as they lose over **5,700 minutes of telemetry per month**, representing a catastrophic loss of data for monitoring energy production and grid stability.
+The devices that worry me most are those on **Firmware v2.3.1 with Cellular connectivity**. This segment has a massive **92.37% failure rate**. Specifically, devices like `IOT_3AD643A` and `IOT_EC1D6B9` are losing over 5,700 minutes of telemetry monthly, representing a catastrophic loss of data visibility.
 
 ---
 
 ## Question 4 – Segmentation
 
 **Q4a, b, c. Segmentation by Firmware, Network, and Region.**
-- **Firmware**: V2.3.1 is the only version failing.
-- **Network**: Cellular is the only network type failing.
+- **Firmware**: V2.3.1 is the only version with significant connectivity failures.
+- **Network**: Cellular is the only network type experiencing these recurring gaps.
 - **Region**: The East region is the most heavily affected (34% failure rate).
 ![Firmware Segmentation](segmentation_firmware.png)
 ![Network Segmentation](segmentation_network.png)
 ![Region Segmentation](segmentation_region.png)
 
 **Q4d. Installation Cohort: Share of flagged devices by installation month.**
-- The failures cluster in the December 2024 cohort in terms of volume, but the failure rate is consistently high for Cellular/v2.3.1 devices regardless of their specific installation month.
 ![Installation Month Failure Rate](installation_month_q4d.png)
 
 **Q4e. Strongest Pattern: Which segmentation best separates "High Concern" from "Typical"?**
-- **One Paragraph Explanation**: The single segmentation that best separates "high concern" from "typical" is the intersection of **Firmware v2.3.1 and Cellular connectivity**. This segment exhibits a massive **92.37% failure rate** compared to the rest of the fleet, which shows a perfect **0.0% failure rate** for all other firmware-network combinations (Fiber and Broadband). This indicates that the connectivity issue is a specific software-driver regression in the v2.3.1 update affecting cellular modems, rather than a hardware-aging problem or a regional network outage.
+- **The "Smoking Gun"**: The combination of **Firmware v2.3.1 and Cellular connectivity**.
+- **Explanation**: This segment exhibits a **92.37% failure rate**, while all other firmware-network combinations (Fiber and Broadband) show a perfect **0.0% failure rate** for connectivity gaps. This proves the issue is a specific software regression in the v2.3.1 update affecting cellular modem drivers.
 
 ---
 
 ## Question 5 – Escalation List
 
 **Q5a. Rules for Priority Levels.**
-- **High**: Flagged (Rule 2 Gaps) AND active error logs (>0). These are systems failing and actively reporting issues.
-- **Medium**: Flagged (Gaps) OR frequent errors (>5). This catches "silent failures" (gaps but no errors) and unstable but connected systems.
+- **High**: Flagged (Rule 2 Gaps) AND active error logs (>0).
+- **Medium**: Flagged (Gaps) OR frequent errors (>5).
 - **Low**: Healthy (No gaps and minimal errors).
 
 **Q5b. Priority Application: How many devices in each level?**
-- **High**: 60 devices (7.5%)
-- **Medium**: 373 devices (46.6%)
-- **Low**: 367 devices (45.9%)
+- **High**: 60 devices.
+- **Medium**: 373 devices.
+- **Low**: 367 devices.
 ![Priority Distribution](priority_distribution.png)
 
 **Q5c. Top 20 Escalation List.**
-The "Top 20" list is determined by first filtering for the highest priority bucket (**High**) and then sorting by **error_count DESC**. This ensures we escalate the "sickest" devices first—those that are both losing significant data and experiencing the highest volume of internal software failures.
+The "Top 20" list is determined by filtering for the **High** priority group and sorting by **error_count DESC**. This prioritizes the systems experiencing the most severe combination of connectivity loss and internal software failures.
 
 | device_id   | firmware   | network_type   |   error_count | priority   |
 |:------------|:-----------|:---------------|--------------:|:-----------|
@@ -149,20 +149,20 @@ The "Top 20" list is determined by first filtering for the highest priority buck
 | IOT_BE43A15 | v2.3.1     | cellular       |            25 | High       |
 | IOT_BFC4A7C | v2.3.1     | cellular       |            21 | High       |
 | IOT_6C56012 | v2.3.1     | cellular       |            21 | High       |
-| IOT_9C7A38B | v2.3.1     | cellular       |            19 | High       |
 | IOT_B1F517A | v2.3.1     | cellular       |            19 | High       |
+| IOT_9C7A38B | v2.3.1     | cellular       |            19 | High       |
 | IOT_4DEA934 | v2.3.1     | cellular       |            16 | High       |
 | IOT_F2828D9 | v2.3.1     | cellular       |            15 | High       |
 | IOT_0E9A215 | v2.3.1     | cellular       |            15 | High       |
 | IOT_15BD259 | v2.3.1     | cellular       |            14 | High       |
-| IOT_73D748C | v2.3.1     | cellular       |            14 | High       |
 | IOT_B9B8E12 | v2.3.1     | cellular       |            14 | High       |
-| IOT_DC48471 | v2.3.1     | cellular       |            13 | High       |
+| IOT_73D748C | v2.3.1     | cellular       |            14 | High       |
+| IOT_4903FF9 | v2.3.1     | cellular       |            13 | High       |
 | IOT_6E1F2CA | v2.3.1     | cellular       |            13 | High       |
 
 **Q5d. Edge Case: Long absence but NO error rows.**
-- **Count**: **61 devices** have connectivity gaps but NO error logs in the `iot_device_errors` file.
-- **Treatment**: These land in the **Medium** priority group (unless they have massive gaps, in which case they may still be manually flagged). The absence of errors likely indicates the system crashed so hard it couldn't even log its own failure before going offline.
+- **Count**: **61 devices** have gaps but NO errors.
+- **Treatment**: These land in the **Medium** priority bucket as they are likely experiencing "total system crashes" that prevent error logging.
 
 **Q5e. Timing: Is there a week where behavior first shows unusual gaps?**
 - **Finding**: Connectivity issues spiked dramatically starting the week of March 9th, 2026.
