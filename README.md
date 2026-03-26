@@ -172,15 +172,25 @@ The "Top 20" list is determined by filtering for the **High** priority group and
 
 ## Question 6 – Written Reflection
 
-**a. What extra information would help us be more certain?**
-To really pin down the root cause, I’d love to see a few things that weren't in this dataset. First, **signal strength data (like RSSI)** would tell us if these devices are just in "dead zones" or if the hardware is actually failing. Second, having **internal reboot logs** would be huge—it would show us if the device is crashing because of a "memory leak" or if the modem is just timing out. Finally, knowing if there was any **scheduled maintenance** from the cellular providers would help us rule out external network issues that have nothing to do with our equipment.
+**a. What additional data (not in these files) would most improve root-cause confidence? List a few concrete examples.**
+To move from "guessing" to "knowing" the cause, I would look for:
+- **Cellular Signal Strength:** This would tell us if the devices are just in "dead zones" with bad reception or if the hardware inside the box is actually failing.
+- **Internal Reboot Logs:** These logs would show us if the device is crashing because it ran out of memory or if the modem is just timing out and giving up.
+- **Cell Tower Maintenance:** Cross referencing our outages with 4G/5G tower downtime would help us rule out external network problems that we can't control.
 
-**b. What are the most likely theories for why this is happening?**
-1. **A bug in the v2.3.1 firmware update:** This is the most likely culprit. Since nearly every device (92.37%) on this specific version and network type is struggling, it looks like a software "regression." Basically, the new code might not know how to talk to cellular modems properly. We could disprove this by checking if any devices on older firmware are having the same issues; if they aren't, the update is definitely to blame.
-2. **The devices are "running out of breath" (Resource Leaks):** It's possible the systems are slowly filling up their internal memory until they can't handle any more data, which causes them to "hiccup" or restart. This would explain why the gaps seem to be getting worse the longer the devices are in the field. We could test this by trying to force a crash on a broadband device using the same data load; if it stays stable, the issue is specific to how the cellular modems handle resources.
+**b. State at least two plausible hypotheses for what might drive intermittent behavior in the field. For each: what in your analysis supports or weakens it, and what data would falsify it?**
+1. **A bug in the v2.3.1 update:** This is the "smoking gun." Since 92.3% of devices on this specific version and network are struggling, it’s almost certainly a mistake in the new code. It likely broke the way the device talks to cellular networks.
+    - **How to disprove:** If we find devices on the old software having the same problems, then the update isn't the problem—the network is.
+2. **Memory Leaks:** It’s possible the systems are slowly filling up their internal storage until they "choke" and restart. This explains why the gaps seem to get worse the longer the devices are in the field.
+    - **How to disprove:** If we put the same heavy data load on a Fiber-connected device and it stays stable, then the issue is unique to how the cellular modems handle their tasks.
 
-**c. What should we keep in mind if we turn these into automatic alerts?**
-The biggest risk is "alert fatigue"—we don't want to "cry wolf" every time a device has a minor connection blip. If we set the thresholds too tight, the operations team will start ignoring the notifications. To fix this, I’d suggest adding a "wait and see" period. Instead of alerting the second a device misses a few pings, we should wait to see if it stays problematic for a couple of days. We also need to make sure the alerts are actually helpful, giving the team a clear next step like "Roll back firmware to v2.3.0."
+**c. If your Q5 rules were turned into production alerts, what could go wrong, and how would you iterate with stakeholders?**
+The biggest risk is "Alert Fatigue", we don't want to have an alert every time a device has a 5-minute gap.
+- **Wait and see:** Instead of alerting the second a device misses one ping, we should only trigger an alarm if it meets the "3 gaps in 7 days" rule. This ignores "noisy" but healthy devices.
+- **Make them useful:** An alert shouldn't just say "Offline." It should tell the tech exactly what to do, like: "Likely software bug — recommend remote rollback to v2.3.0."
 
-**d. A few things the broader team should know about this data:**
-It’s important to be honest about the limits of what we’re looking at. For one, the **error logs are shorter than the telemetry data**, so we might be missing the very first signs of trouble from earlier in the year. Also, even though the stats point a finger at the v2.3.1 update, **correlation doesn't always equal causation**. It’s a very strong lead, but we should verify it in a lab before we start a massive recall. Lastly, there are over 60 devices that are "silent failures"—they're dropping data but aren't even healthy enough to log an error. This means the problem might be even more serious than the error counts suggest.
+**d. What limitations of these extracts should a non-technical audience hear before acting on your numbers?**
+- **The "Missing" Log Problem:** The error logs don't cover the whole year, so we might have missed the very first signs of trouble from early January.
+- **Unmapped Error Codes:** Several logs contain raw numeric codes without descriptions. Without a data dictionary to translate these, field technicians cannot know if a code represents a minor glitch or a total hardware failure.
+- **Data isn't proof:** Even though the stats point a finger at version v2.3.1, we shouldn't start a massive hardware recall until we've tested this in a lab.
+- **The "Silent Failures":** There are 61 devices that are dropping data but aren't even healthy enough to log an error. This means the situation is actually more serious than the error counts suggest—some devices are "crashing out" completely.
