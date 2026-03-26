@@ -124,9 +124,21 @@ The devices that worry me most are those on **Firmware v2.3.1 with Cellular conn
 ## Question 5 – Escalation List
 
 **Q5a. Rules for Priority Levels.**
-- **High**: Flagged (Rule 2 Gaps) AND active error logs (>0).
-- **Medium**: Flagged (Gaps) OR frequent errors (>5).
-- **Low**: Healthy (No gaps and minimal errors).
+1. High Priority (Gaps AND Errors)
+   * **Definition**: These devices have violated Rule 2 (at least 3 gaps of 1 hour in a 7-day window) AND they have at least one logged error.
+   * **Logic**: These are the most critical because they are physically losing connectivity and are "unhealthy" enough to actually record internal software/hardware errors.
+
+2. Medium Priority (Gaps OR High Errors)
+   * **Definition**: These devices meet one of the following criteria (but not both):
+       * They have connectivity gaps (Rule 2 violation) but zero logged errors (these are "silent failures").
+       * They have more than 5 logged errors, even if their connectivity is currently stable.
+   * **Logic**: This catches systems that are either unstable ("chatty" with errors) or systems that crashed so hard they couldn't even log an error before going offline.
+
+3. Low Priority (Healthy)
+   * **Definition**: All other devices.
+   * **Logic**: These systems have stable connectivity and few-to-no errors.
+
+**Sorting Note**: In the final escalation list, we prioritize High first, then Medium, and finally Low. Within those groups, we sort by the highest error count to ensure the devices with the most active failures get attention first.
 
 **Q5b. Priority Application: How many devices in each level?**
 - **High**: 60 devices.
