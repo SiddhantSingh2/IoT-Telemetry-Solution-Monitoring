@@ -259,10 +259,11 @@ ORDER BY failure_rate_pct DESC;
 -- 5c: Prioritized Top 20 Escalation List
 WITH 
 flagged AS (
-    SELECT DISTINCT device_id FROM (
+    SELECT DISTINCT device_id, sum(gap) as total_gap_mins FROM (
         SELECT device_id, date_diff('minute', LAG(timestamp) OVER (PARTITION BY device_id ORDER BY timestamp), timestamp) as gap
         FROM iot_measurements
     ) WHERE gap >= 60
+    GROUP BY device_id
 ),
 error_summary AS (
     SELECT device_id, count(*) as error_count FROM iot_device_errors GROUP BY 1
@@ -273,6 +274,7 @@ priority_ranking AS (
         d.firmware,
         d.network_type,
         COALESCE(e.error_count, 0) as error_count,
+        COALESCE(f.total_gap_mins, 0) as total_gap_mins,
         CASE 
             WHEN f.device_id IS NOT NULL AND COALESCE(e.error_count, 0) > 0 THEN 'High'
             WHEN f.device_id IS NOT NULL OR COALESCE(e.error_count, 0) > 5 THEN 'Medium'
@@ -290,7 +292,8 @@ ORDER BY
         WHEN 'Medium' THEN 2 
         WHEN 'Low' THEN 3 
     END ASC,
-    error_count DESC
+    error_count DESC,
+    total_gap_mins DESC
 LIMIT 20;
 
 -- 5d: Edge Case Analysis (Gaps but NO errors)

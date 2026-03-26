@@ -138,7 +138,7 @@ The devices that worry me most are those on **Firmware v2.3.1 with Cellular conn
    * **Definition**: All other devices.
    * **Logic**: These systems have stable connectivity and few-to-no errors.
 
-**Sorting Note**: In the final escalation list, we prioritize High first, then Medium, and finally Low. Within those groups, we sort by the highest error count to ensure the devices with the most active failures get attention first.
+**Sorting Note**: In the final escalation list, we prioritize High first, then Medium, and finally Low. Within those groups, we sort by the highest error count. If the error count is identical, we use `total_gap_mins` as a secondary sort criterion to prioritize devices with the most significant data loss.
 
 **Q5b. Priority Application: How many devices in each level?**
 - **High**: 60 devices.
@@ -147,30 +147,30 @@ The devices that worry me most are those on **Firmware v2.3.1 with Cellular conn
 ![Priority Distribution](priority_distribution.png)
 
 **Q5c. Top 20 Escalation List.**
-The "Top 20" list is determined by filtering for the **High** priority group and sorting by **error_count DESC**. This prioritizes the systems experiencing the most severe combination of connectivity loss and internal software failures.
+The "Top 20" list is determined by filtering for the **High** priority group and sorting by **error_count DESC** and **total_gap_mins DESC**.
 
-| device_id   | firmware   | network_type   |   error_count | priority   |
-|:------------|:-----------|:---------------|--------------:|:-----------|
-| IOT_A955625 | v2.3.1     | cellular       |          1710 | High       |
-| IOT_11D6914 | v2.3.1     | cellular       |           436 | High       |
-| IOT_3AD643A | v2.3.1     | cellular       |           386 | High       |
-| IOT_02D3BA0 | v2.3.1     | cellular       |           339 | High       |
-| IOT_5C41BBC | v2.3.1     | cellular       |           120 | High       |
-| IOT_952AB7D | v2.3.1     | cellular       |            46 | High       |
-| IOT_9264F38 | v2.3.1     | cellular       |            37 | High       |
-| IOT_BE43A15 | v2.3.1     | cellular       |            25 | High       |
-| IOT_BFC4A7C | v2.3.1     | cellular       |            21 | High       |
-| IOT_6C56012 | v2.3.1     | cellular       |            21 | High       |
-| IOT_B1F517A | v2.3.1     | cellular       |            19 | High       |
-| IOT_9C7A38B | v2.3.1     | cellular       |            19 | High       |
-| IOT_4DEA934 | v2.3.1     | cellular       |            16 | High       |
-| IOT_F2828D9 | v2.3.1     | cellular       |            15 | High       |
-| IOT_0E9A215 | v2.3.1     | cellular       |            15 | High       |
-| IOT_15BD259 | v2.3.1     | cellular       |            14 | High       |
-| IOT_B9B8E12 | v2.3.1     | cellular       |            14 | High       |
-| IOT_73D748C | v2.3.1     | cellular       |            14 | High       |
-| IOT_4903FF9 | v2.3.1     | cellular       |            13 | High       |
-| IOT_6E1F2CA | v2.3.1     | cellular       |            13 | High       |
+| device_id   | firmware   | network_type   |   error_count |   total_gap_mins | priority   |
+|:------------|:-----------|:---------------|--------------:|-----------------:|:-----------|
+| IOT_A955625 | v2.3.1     | cellular       |          1710 |             5150 | High       |
+| IOT_11D6914 | v2.3.1     | cellular       |           436 |             5210 | High       |
+| IOT_3AD643A | v2.3.1     | cellular       |           386 |             6170 | High       |
+| IOT_02D3BA0 | v2.3.1     | cellular       |           339 |             5360 | High       |
+| IOT_5C41BBC | v2.3.1     | cellular       |           120 |             5260 | High       |
+| IOT_952AB7D | v2.3.1     | cellular       |            46 |             5955 | High       |
+| IOT_9264F38 | v2.3.1     | cellular       |            37 |             5675 | High       |
+| IOT_BE43A15 | v2.3.1     | cellular       |            25 |             5370 | High       |
+| IOT_BFC4A7C | v2.3.1     | cellular       |            21 |             5935 | High       |
+| IOT_6C56012 | v2.3.1     | cellular       |            21 |             5515 | High       |
+| IOT_B1F517A | v2.3.1     | cellular       |            19 |             5955 | High       |
+| IOT_9C7A38B | v2.3.1     | cellular       |            19 |             5775 | High       |
+| IOT_4DEA934 | v2.3.1     | cellular       |            16 |             5870 | High       |
+| IOT_0E9A215 | v2.3.1     | cellular       |            15 |             5685 | High       |
+| IOT_F2828D9 | v2.3.1     | cellular       |            15 |             5170 | High       |
+| IOT_15BD259 | v2.3.1     | cellular       |            14 |             5600 | High       |
+| IOT_73D748C | v2.3.1     | cellular       |            14 |             5530 | High       |
+| IOT_B9B8E12 | v2.3.1     | cellular       |            14 |             5350 | High       |
+| IOT_6E1F2CA | v2.3.1     | cellular       |            13 |             5650 | High       |
+| IOT_DC48471 | v2.3.1     | cellular       |            13 |             5590 | High       |
 
 **Q5d. Edge Case: Long absence but NO error rows.**
 - **Count**: **61 devices** have gaps but NO errors.
